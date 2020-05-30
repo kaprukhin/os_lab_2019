@@ -4,10 +4,10 @@
 
 int main ()
 {
-  pid_t child_pid;
+  pid_t child;
 
-  child_pid = fork ();
-  if (child_pid > 0) {
+  child = fork ();
+  if (child > 0) {
     sleep (25);
   }
   else {
