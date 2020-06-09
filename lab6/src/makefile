@@ -9,5 +9,5 @@ server : server.c
 client : client.c
 	$(CC) -o client client.c -L. -lmultmod $(CFLAGS)
 
-clean :
+clean 
 	rm -f client server

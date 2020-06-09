@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
     uint64_t begin = i*k/nserv + 1;
     uint64_t end = (i == (nserv-1)) ? k + 1 : (i+1)*k/nserv + 1;
 
-    memcpy(buff, &begin, sizeof(uint64_t));
+    memcpy(buff, &begin, szeof(uint64_t));
     memcpy(buff + sizeof(uint64_t), &end, sizeof(uint64_t));
     memcpy(buff + 2 * sizeof(uint64_t), &mod, sizeof(uint64_t));
 
