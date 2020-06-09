@@ -1,16 +1,13 @@
-CC=gcc
-CCFLAGS=-I.
+  CC=gcc
+CFLAGS=-I. -std=c99
 
-all : client server
+all : server client
 
-client : libMultModulo.o libMultModulo.h
-	$(CC) -o client libMultModulo.o client.c -lpthread $(CCFLAGS)
+server : server.c
+	$(CC) -lpthread -o server server.c -L. -lmultmod $(CFLAGS)
 
-server : libMultModulo.o libMultModulo.h
-	$(CC) -o server libMultModulo.o server.c -lpthread $(CCFLAGS)
-
-libMultModulo.o : libMultModulo.h
-	$(CC) -o libMultModulo.o -c libMultModulo.c $(CCFLAGS)
+client : client.c
+	$(CC) -o client client.c -L. -lmultmod $(CFLAGS)
 
 clean :
-	rm client server libMultModulo.o
+	rm -f client server

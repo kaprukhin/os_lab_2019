@@ -8,13 +8,11 @@
 #include <getopt.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "multmod.h"
 #include "pthread.h"
-
-#include "libMultModulo.h"
 
 struct FactorialArgs {
   uint64_t begin;
@@ -22,16 +20,10 @@ struct FactorialArgs {
   uint64_t mod;
 };
 
-pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-
 uint64_t Factorial(const struct FactorialArgs *args) {
   uint64_t ans = 1;
-  // TODO: my code here
-  for (uint64_t i = args->begin; i <= args->end; i++)
-  {
-    ans *= i % args->mod;
-  }
-  ans %= args->mod;
+	for(uint64_t i = args->begin; i < args->end; i++)
+		ans = MultModulo(ans, i, args->mod);
   return ans;
 }
 
@@ -40,17 +32,18 @@ void *ThreadFactorial(void *args) {
   return (void *)(uint64_t *)Factorial(fargs);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   int tnum = -1;
   int port = -1;
 
-  while (true)
-  {
+  char servers[255] = {'\0'}; // TODO: explain why 255
+
+  while (true) {
     int current_optind = optind ? optind : 1;
 
     static struct option options[] = {{"port", required_argument, 0, 0},
                                       {"tnum", required_argument, 0, 0},
+                                      {"servers", required_argument, 0, 0},
                                       {0, 0, 0, 0}};
 
     int option_index = 0;
@@ -59,29 +52,21 @@ int main(int argc, char **argv)
     if (c == -1)
       break;
 
-    switch (c)
-    {
-    case 0:
-    {
-      switch (option_index)
-      {
+    switch (c) {
+    case 0: {
+      switch (option_index) {
       case 0:
         port = atoi(optarg);
-        // TODO: my code here
-        if (port <=0)
-        {
-          printf("port must be a positive number\n");
-          return 1;
-        }
+        // TODO: your code here
         break;
       case 1:
         tnum = atoi(optarg);
-        // TODO: my code here
-        if (tnum <=0)
-        {
-          printf("tnum must be a positive number\n");
-          return 1;
-        }
+	if(tnum < 1)
+		tnum = -1;
+        break;
+      case 2:
+        // TODO: your code here
+        memcpy(servers, optarg, strlen(optarg));
         break;
       default:
         printf("Index %d is out of options\n", option_index);
@@ -96,18 +81,23 @@ int main(int argc, char **argv)
     }
   }
 
-  if (port == -1 || tnum == -1)
-  {
+  if (port == -1 || tnum == -1) {
     fprintf(stderr, "Using: %s --port 20001 --tnum 4\n", argv[0]);
     return 1;
   }
 
   int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server_fd < 0)
-  {
+  if (server_fd < 0) {
     fprintf(stderr, "Can not create server socket!");
     return 1;
   }
+	
+	FILE* f = fopen(servers, "ab");
+	flockfile(f);
+	fprintf(f, "%s:%i\n", "127.0.0.1", port);
+	printf("%s:%i\n", "127.0.0.1", port);
+	funlockfile(f);
+	fclose(f);
 
   struct sockaddr_in server;
   server.sin_family = AF_INET;
@@ -118,48 +108,41 @@ int main(int argc, char **argv)
   setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof(opt_val));
 
   int err = bind(server_fd, (struct sockaddr *)&server, sizeof(server));
-  if (err < 0)
-  {
-    fprintf(stderr, "Can not bind to socket!\n");
+  if (err < 0) {
+    fprintf(stderr, "Can not bind to socket!");
     return 1;
   }
 
   err = listen(server_fd, 128);
-  if (err < 0)
-  {
+  if (err < 0) {
     fprintf(stderr, "Could not listen on socket\n");
     return 1;
   }
 
   printf("Server listening at %d\n", port);
-  printf("accepted connection from %s, port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-  while (true)
-  {
+  while (true) {
     struct sockaddr_in client;
     socklen_t client_len = sizeof(client);
     int client_fd = accept(server_fd, (struct sockaddr *)&client, &client_len);
-    if (client_fd < 0)
-    {
+
+    if (client_fd < 0) {
       fprintf(stderr, "Could not establish new connection\n");
       continue;
     }
 
-    while (true)
-    {
+    while (true) {
       unsigned int buffer_size = sizeof(uint64_t) * 3;
       char from_client[buffer_size];
       int read = recv(client_fd, from_client, buffer_size, 0);
 
       if (!read)
         break;
-      if (read < 0)
-      {
+      if (read < 0) {
         fprintf(stderr, "Client read failed\n");
         break;
       }
-      if (read < buffer_size)
-      {
+      if (read < buffer_size) {
         fprintf(stderr, "Client send wrong data format\n");
         break;
       }
@@ -174,27 +157,14 @@ int main(int argc, char **argv)
       memcpy(&mod, from_client + 2 * sizeof(uint64_t), sizeof(uint64_t));
 
       fprintf(stdout, "Receive: %llu %llu %llu\n", begin, end, mod);
-
-      uint64_t part = (end-begin+1)/tnum;
+	uint64_t dx = (end - begin)/tnum;
 
       struct FactorialArgs args[tnum];
-      for (uint32_t i = 0; i < tnum; i++)
-      {
+      for (uint32_t i = 0; i < tnum; i++) {
         // TODO: parallel somehow
-        args[i].begin = begin + i*part;
-        args[i].mod = mod;
-        if (i != 0)
-        {
-          args[i].begin++;
-        }
-        if (i == (tnum - 1))
-        {
-          args[i].end = end;
-        }
-        else
-        {
-          args[i].end = begin + (i+1)*part;
-        }
+        args[i].begin = begin + i*dx;
+        args[i].end   = (i == (tnum - 1)) ? end : begin + (i+1)*dx;
+        args[i].mod   = mod;
 
         if (pthread_create(&threads[i], NULL, ThreadFactorial,
                            (void *)&args[i])) {
@@ -204,22 +174,19 @@ int main(int argc, char **argv)
       }
 
       uint64_t total = 1;
-      for (uint32_t i = 0; i < tnum; i++)
-      {
-        pthread_mutex_lock(&mut);
+      for (uint32_t i = 0; i < tnum; i++) {
         uint64_t result = 0;
         pthread_join(threads[i], (void **)&result);
-        total =  MultModulo(total, result, mod);
-        pthread_mutex_unlock(&mut);
+        total = MultModulo(total, result, mod);
       }
 
-      fprintf("Total: %llu\n", total);
+      printf("%llu, %llu; Total: %llu\n", begin, end, total);
 
       char buffer[sizeof(total)];
       memcpy(buffer, &total, sizeof(total));
       err = send(client_fd, buffer, sizeof(total), 0);
       if (err < 0) {
-        printf(stderr, "Can't send data to client\n");
+        fprintf(stderr, "Can't send data to client\n");
         break;
       }
     }
