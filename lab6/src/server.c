@@ -195,5 +195,5 @@ int main(int argc, char **argv) {
     close(client_fd);
   }
 
-  return 0
+  return 0;
 }
